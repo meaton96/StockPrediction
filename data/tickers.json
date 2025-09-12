@@ -1,17 +1,21 @@
-[
-    "NVDA",
-    "MSFT",
-    "AAPL",
-    "GOOGL",
-    "AMZN",
-    "META",
-    "TSLA",
-    "AVGO",
-    "TSM",
-    "ORCL",
-    "WMT",
-    "JPM",
-    "INTC",
-    "UNH",
-    "HD"
-]
+{
+    "active": [
+        "AAPL"
+    ],
+    "inactive": [
+        "MSFT",
+        "NVDA",
+        "GOOGL",
+        "AMZN",
+        "META",
+        "TSLA",
+        "AVGO",
+        "TSM",
+        "ORCL",
+        "WMT",
+        "JPM",
+        "INTC",
+        "UNH",
+        "HD"
+    ]
+}

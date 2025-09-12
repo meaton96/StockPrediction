@@ -1,36 +1,51 @@
+# imports
 import yfinance as yf
 import json
+from typing import cast, Any
 import csv
-
-data_path = 'data'
-raw_path = 'raw'
-
-
-with open(f'{data_path}/tickers.json', 'r') as file:
-    ticker_list = json.load(file)
-
-historical_data = {}
-financials = {}
-balance_sheets = {}
-cashflows = {}
-analyst_recs = {}
+import pandas as pd
+from pathlib import Path
 
 
-def fetch_ticker_data(ticker_list: list):
+
+
+
+def fetch_ticker_data(ticker_list: Any, raw_path: Path):
+
     for ticker in ticker_list:
-        fetch_and_dump_ticker(ticker)
+        fetch_and_save(ticker, raw_path)
 
 
-def fetch_and_dump_ticker(ticker: str):
-    print(f"fetch and dump {ticker}")
-    _ticker = yf.Ticker(ticker)
-    _temp_ticker = _ticker.history(period="max")
-    _temp_ticker.to_csv(f'{data_path}/{raw_path}/{ticker}.csv')
-    print(f'finished fetching {ticker}')
+def fetch_and_save(ticker: str, out_dir: Path):
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-fetch_ticker_data(ticker_list=ticker_list)
+    df = cast(pd.DataFrame, yf.download(ticker, start="1980-01-01", auto_adjust=True, progress=False))
 
+    # 1) Ensure DatetimeIndex and name it 'Date' for CSV
+    if not isinstance(df.index, pd.DatetimeIndex):
+        df.index = pd.to_datetime(df.index, errors="coerce")
+    try:
+        df.index = df.index.tz_localize(None)
+    except (TypeError, AttributeError):
+        pass
+    df.index.name = "Date"
 
+    # 2) Flatten MultiIndex columns like ('Close','AAPL') -> 'Close'
+    if isinstance(df.columns, pd.MultiIndex):
+        # If there’s exactly one ticker level, drop it
+        if len(df.columns.get_level_values(1).unique()) == 1:
+            df.columns = [lvl0 for (lvl0, _lvl1) in df.columns]
+        else:
+            # Multiple tickers → keep TICKER_Close style for clarity
+            df.columns = [f"{t}_{field}" for (field, t) in df.columns]
 
+    # 3) Keep only adjusted OHLCV (auto_adjust=True already did the adjusting)
+    keep = [c for c in ["Open", "High", "Low", "Close", "Volume"] if c in df.columns]
+    df = df[keep].sort_index()
 
-
+    # 4) Write with index label so Date becomes a column in the CSV
+    out_path = out_dir / f"{ticker}.csv"
+    df.to_csv(out_path, index=True, index_label="Date", date_format="%Y-%m-%d")
+    print(f"saved: {out_path}")
+    return df
