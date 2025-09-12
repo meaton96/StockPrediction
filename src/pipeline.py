@@ -3,11 +3,13 @@ from pathlib import Path
 from .clean_data import cleaning_pipeline
 from .engineer_features import make_features
 from .scale_data import scale_dataframe
+from .write_data import dump_csvs
 import json
 import pandas as pd
 
 ticker_list_path = Path('data/tickers.json')
-raw_path = Path('data/raw.json')
+raw_path = Path('data/raw')
+out_path = Path('data/processed')
 
 def main():
     print(f'begin fetching data from yfinance...')
@@ -43,7 +45,7 @@ def main():
     # Gap up/down
     # target (prediction) column (price go up next day)
     for key, value in frames.items():
-        make_features(key, value)
+        frames[key] = make_features(key, value)
 
     print('Done egineering features')
     print('scaling data frames...')
@@ -62,6 +64,10 @@ def main():
         frame_scalers[key] = scaler
 
     print('Finished Scaling data')
+
+    print("writing csvs...")
+    dump_csvs(frames, out_path)
+
     
 
 if __name__ == "__main__":

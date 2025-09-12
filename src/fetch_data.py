@@ -4,6 +4,7 @@ import json
 from typing import cast, Any
 import csv
 import pandas as pd
+from .write_data import dump_csv
 from pathlib import Path
 
 
@@ -45,7 +46,5 @@ def fetch_and_save(ticker: str, out_dir: Path):
     df = df[keep].sort_index()
 
     # 4) Write with index label so Date becomes a column in the CSV
-    out_path = out_dir / f"{ticker}.csv"
-    df.to_csv(out_path, index=True, index_label="Date", date_format="%Y-%m-%d")
-    print(f"saved: {out_path}")
+    dump_csv(df, out_dir, ticker)
     return df
