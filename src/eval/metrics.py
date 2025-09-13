@@ -1,8 +1,19 @@
 from __future__ import annotations
-from typing import Sequence, Mapping, Any
+
+from typing import Any, Dict, Sequence, Mapping
 from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score
 import pandas as pd
 import numpy as np
+
+def evaluate(model: Any,
+             X_train: pd.DataFrame, y_train: pd.Series,
+             X_test: pd.DataFrame,  y_true: pd.Series) -> Dict[str, Any]:
+    
+    model.fit(X_train, y_train)
+    proba = model.predict_proba(X_test)[:, 1]
+    pred  = (proba >= 0.5).astype(int)
+    
+    return get_metrics(y_true=y_true, y_predictions=pred, y_score=proba)
 
 ArrayLike1D = Sequence[int] | np.ndarray | pd.Series
 
