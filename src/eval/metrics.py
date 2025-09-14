@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, Sequence, Mapping
 from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score
 from sklearn.metrics import roc_curve, auc, precision_recall_curve, ConfusionMatrixDisplay
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
@@ -45,6 +46,41 @@ def get_metrics(y_true: ArrayLike1D,
         'y_pred': y_pred,
         'y_score': y_score
     }
+
+def get_multi_metrics_df(predictors: dict[str, Any]) -> pd.DataFrame:
+    rows = []
+    for ticker, predictor in predictors.items():
+        row = flatten_metrics(predictor.metrics, ticker, predictor.model_name)
+        rows.append(row)
+
+    return pd.DataFrame(rows)
+
+def flatten_metrics(metrics: dict, ticker: str, model: str) -> dict:
+    cm = metrics["confusion"].ravel()
+    tn, fp, fn, tp = cm
+    acc = (tn + tp) / cm.sum()
+
+    # classification_report with output_dict=True
+    rep = classification_report(metrics["y_true"], metrics["y_pred"], output_dict=True)
+
+    return {
+        "ticker": ticker,
+        "model": model,
+        "roc_auc": metrics["roc_auc"],
+        "accuracy": acc,
+        "precision_0": rep["0"]["precision"],
+        "recall_0": rep["0"]["recall"],
+        "f1_0": rep["0"]["f1-score"],
+        "support_0": rep["0"]["support"],
+        "precision_1": rep["1"]["precision"],
+        "recall_1": rep["1"]["recall"],
+        "f1_1": rep["1"]["f1-score"],
+        "support_1": rep["1"]["support"],
+        "macro_f1": rep["macro avg"]["f1-score"],
+        "weighted_f1": rep["weighted avg"]["f1-score"],
+        "tn": tn, "fp": fp, "fn": fn, "tp": tp
+    }
+
 
 def format_metrics(metrics: Mapping[str, Any], duration: datetime ) -> str:
     """
@@ -147,7 +183,6 @@ def get_and_print_metrics(y_true: ArrayLike1D,
     return metrics
     
 
-# NEW: plotting helper
 def plot_classification_diagnostics(metrics: Mapping[str, Any], title: str | None = None) -> None:
     """
     Render ROC curve, Precision-Recall curve, and Confusion Matrix heatmap

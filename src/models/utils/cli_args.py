@@ -22,20 +22,12 @@ def _load_models() -> Dict[str, str]:
     # Normalize keys to strings and values to strings
     return {str(k): str(v) for k, v in MODELS.items()}
 
-_TICKER_RE = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
+
 
 @dataclass(frozen=True)
 class CLIConfig:
     model: str
-    ticker: str
 
-def _validate_ticker(value: str) -> str:
-    v = value.strip().upper()
-    if not _TICKER_RE.match(v):
-        raise argparse.ArgumentTypeError(
-            f"Invalid ticker '{value}'. Use 1–10 chars A–Z, 0–9, '.', or '-'."
-        )
-    return v
 
 def _validate_model(value: str, available: Dict[str, str]) -> str:
     v = value.strip()
@@ -68,14 +60,14 @@ def _models_as_text(available: Dict[str, str]) -> str:
 
 def parse_cli_args(argv: list[str] | None = None) -> CLIConfig:
     """
-    Parse command-line args for model and ticker.
+    Parse command-line args for model.
     Also supports --list-models to print available models and exit.
     """
     available = _load_models()
 
     parser = argparse.ArgumentParser(
         prog="stock-predictor",
-        description="CLI for choosing model and ticker."
+        description="CLI for choosing model."
     )
 
     parser.add_argument(
@@ -83,19 +75,13 @@ def parse_cli_args(argv: list[str] | None = None) -> CLIConfig:
         required=False,
         help="Model identifier string (see --list-models).",
     )
-    parser.add_argument(
-        "--ticker",
-        required=False,
-        type=_validate_ticker,
-        help="Ticker symbol, e.g. AAPL, MSFT, BRK.B.",
-    )
+    
     parser.add_argument(
         "--list-models",
         action="store_true",
         help="List available models from src.models.registry and exit."
     )
 
-    # If you prefer a subcommand instead of a flag, you can add one later. This is simpler.
 
     ns = parser.parse_args(argv)
 
@@ -103,9 +89,8 @@ def parse_cli_args(argv: list[str] | None = None) -> CLIConfig:
         print(_models_as_text(available))
         sys.exit(0)
 
-    # Enforce required when not listing
-    if not ns.model or not ns.ticker:
-        parser.error("the following arguments are required: --model, --ticker (or use --list-models)")
+    if not ns.model:
+        parser.error("the following arguments are required: --model, (or use --list-models)")
 
     model_name = _validate_model(ns.model, available)
-    return CLIConfig(model=model_name, ticker=ns.ticker)
+    return CLIConfig(model=model_name)

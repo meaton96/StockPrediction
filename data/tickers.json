@@ -1,8 +1,6 @@
 {
     "active": [
-        "AAPL"
-    ],
-    "inactive": [
+        "AAPL",
         "MSFT",
         "NVDA",
         "GOOGL",
@@ -17,5 +15,8 @@
         "INTC",
         "UNH",
         "HD"
+    ],
+    "inactive": [
+        
     ]
 }
