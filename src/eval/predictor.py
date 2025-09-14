@@ -41,7 +41,7 @@ def main(argv: list[str] | None = None) -> None:
     end_time = datetime.now()
 
     dur = end_time - start_time
-    print_metrics(metrics, dur)
+    print_metrics(metrics, dur, do_plot=True, title=f'{cfg.ticker} - {cfg.model}')
 
 # if __name__ == "__main__":
 #     main()

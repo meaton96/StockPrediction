@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, Sequence, Mapping
 from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score
+from sklearn.metrics import roc_curve, auc, precision_recall_curve, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
+import seaborn as sns
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -21,30 +24,10 @@ ArrayLike1D = Sequence[int] | np.ndarray | pd.Series
 
 
 def get_metrics(y_true: ArrayLike1D, 
-                y_predictions : ArrayLike1D, 
+                y_predictions: ArrayLike1D, 
                 y_score: Sequence[float] | np.ndarray | pd.Series,
-                digits:int = 3) -> dict[str, Any]:
-    """
-    Computes a set of classification metrics for model evaluation.
-    This function calculates the ROC AUC score, generates a classification report,
-    and computes the confusion matrix for the given true labels, predicted labels,
-    and prediction scores. It ensures all inputs are 1D arrays of matching length.
-    Args:
-        y_true (ArrayLike1D): Ground truth (correct) target values.
-        y_predictions (ArrayLike1D): Predicted target values from the classifier.
-        y_score (Sequence[float] | np.ndarray | pd.Series): Predicted scores or probabilities for ROC AUC calculation.
-        digits (int, optional): Number of decimal places for the classification report. Defaults to 3.
-    Returns:
-        dict[str, Any]: Dictionary containing:
-            - 'roc_auc': ROC AUC score (float)
-            - 'clf_report': Classification report (str)
-            - 'confusion': Confusion matrix (np.ndarray)
-    Raises:
-        ValueError: If input arrays are not 1D or their lengths do not match.
-    # 
-    """
+                digits: int = 3) -> dict[str, Any]:
 
-    # Convert to np arrays and validate shapes
     y_true = np.asarray(y_true)
     y_pred = np.asarray(y_predictions)
     y_score = np.asarray(y_score, dtype=float)
@@ -55,9 +38,12 @@ def get_metrics(y_true: ArrayLike1D,
         raise ValueError("Lengths must match.")
 
     return {
-        'roc_auc' : roc_auc_score(y_true, y_score),
-        'clf_report' : classification_report(y_true=y_true, y_pred=y_pred, digits=digits),
-        'confusion' : confusion_matrix(y_true=y_true, y_pred=y_pred)
+        'roc_auc': roc_auc_score(y_true, y_score),
+        'clf_report': classification_report(y_true=y_true, y_pred=y_pred, digits=digits),
+        'confusion': confusion_matrix(y_true=y_true, y_pred=y_pred),
+        'y_true': y_true,
+        'y_pred': y_pred,
+        'y_score': y_score
     }
 
 def format_metrics(metrics: Mapping[str, Any], duration: datetime ) -> str:
@@ -133,17 +119,82 @@ def format_metrics(metrics: Mapping[str, Any], duration: datetime ) -> str:
     return "\n".join(lines)
 
 
-def print_metrics(metrics: Mapping[str, Any], duration: datetime) -> None:
+def print_metrics(
+        metrics: Mapping[str, Any], 
+        duration: datetime,
+        do_plot: bool = True,
+        title: str | None = None) -> None:
     """Print the formatted metrics summary."""
     print(format_metrics(metrics, duration))
+    if (do_plot):
+        plot_classification_diagnostics(
+            metrics=metrics,
+            title=title
+        )
+
 
 def get_and_print_metrics(y_true: ArrayLike1D, 
-                y_predictions : ArrayLike1D, 
-                y_score: Sequence[float] | np.ndarray | pd.Series, 
-                duration: datetime,
-                digits:int = 3) -> dict[str, Any]:
-    
+                          y_predictions: ArrayLike1D, 
+                          y_score: Sequence[float] | np.ndarray | pd.Series, 
+                          duration: datetime,
+                          digits: int = 3,
+                          do_plot: bool = True,
+                          title: str | None = None) -> dict[str, Any]:
     metrics = get_metrics(y_true, y_predictions, y_score, digits)
     print_metrics(metrics, duration)
+    if do_plot:
+        plot_classification_diagnostics(metrics, title=title)
     return metrics
     
+
+# NEW: plotting helper
+def plot_classification_diagnostics(metrics: Mapping[str, Any], title: str | None = None) -> None:
+    """
+    Render ROC curve, Precision-Recall curve, and Confusion Matrix heatmap
+    using values stored in the metrics dict.
+    """
+    y_true = np.asarray(metrics["y_true"])
+    y_pred = np.asarray(metrics["y_pred"])
+    y_score = np.asarray(metrics["y_score"], dtype=float)
+    cm = np.asarray(metrics["confusion"])
+
+    # ROC
+    fpr, tpr, _ = roc_curve(y_true, y_score)
+    roc_auc = auc(fpr, tpr)
+
+    # PR
+    precision, recall, _ = precision_recall_curve(y_true, y_score)
+
+    # Figure
+    fig, axs = plt.subplots(1, 3, figsize=(18, 5))
+    if title:
+        fig.suptitle(title, fontsize=14)
+
+    # 1) ROC
+    axs[0].plot(fpr, tpr, lw=2, label=f"AUC = {roc_auc:.3f}")
+    axs[0].plot([0, 1], [0, 1], ls="--", c="grey", lw=1)
+    axs[0].set_xlabel("False Positive Rate")
+    axs[0].set_ylabel("True Positive Rate")
+    axs[0].set_title("ROC Curve")
+    axs[0].legend(loc="lower right")
+
+    # 2) Precision-Recall
+    axs[1].plot(recall, precision, lw=2)
+    baseline = (y_true == 1).mean()
+    axs[1].hlines(baseline, 0, 1, linestyles="--", colors="grey", lw=1, label=f"Baseline={baseline:.3f}")
+    axs[1].set_xlabel("Recall")
+    axs[1].set_ylabel("Precision")
+    axs[1].set_title("Precision–Recall Curve")
+    axs[1].legend(loc="upper right")
+
+    # 3) Confusion Matrix
+    if cm.shape == (2, 2):
+        df_cm = pd.DataFrame(cm, index=["Actual 0", "Actual 1"], columns=["Pred 0", "Pred 1"])
+        sns.heatmap(df_cm, annot=True, fmt="d", cmap="Blues", cbar=False, ax=axs[2])
+        axs[2].set_title("Confusion Matrix")
+    else:
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", cbar=False, ax=axs[2])
+        axs[2].set_title("Confusion Matrix")
+
+    plt.tight_layout()
+    plt.show()
