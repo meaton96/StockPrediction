@@ -1,4 +1,4 @@
-from src.pipeline import main as run_pipeline
+from src.data_processing.pipeline import main as run_pipeline
 
 
 if __name__ == "__main__":
