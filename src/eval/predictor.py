@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Dict
+from datetime import datetime
 
 import pandas as pd
 
@@ -35,8 +36,12 @@ class StockPredictor:
 def main(argv: list[str] | None = None) -> None:
     cfg: CLIConfig = parse_cli_args(argv)
     predictor = StockPredictor(model_name=cfg.model, ticker=cfg.ticker)
+    start_time = datetime.now()
     metrics = predictor.run()
-    print_metrics(metrics)
+    end_time = datetime.now()
+
+    dur = end_time - start_time
+    print_metrics(metrics, dur)
 
 # if __name__ == "__main__":
 #     main()

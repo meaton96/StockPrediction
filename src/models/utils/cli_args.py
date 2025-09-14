@@ -11,7 +11,7 @@ from typing import Dict
 # Import model catalog
 def _load_models() -> Dict[str, str]:
     try:
-        from src.models.config import MODELS  # type: ignore
+        from src.models.registry import MODELS 
     except Exception as e:
         raise RuntimeError(
             "Unable to import src.models.config.MODELS. "
@@ -92,7 +92,7 @@ def parse_cli_args(argv: list[str] | None = None) -> CLIConfig:
     parser.add_argument(
         "--list-models",
         action="store_true",
-        help="List available models from src.models.config and exit."
+        help="List available models from src.models.registry and exit."
     )
 
     # If you prefer a subcommand instead of a flag, you can add one later. This is simpler.

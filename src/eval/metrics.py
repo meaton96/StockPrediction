@@ -4,6 +4,8 @@ from typing import Any, Dict, Sequence, Mapping
 from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score
 import pandas as pd
 import numpy as np
+from datetime import datetime
+
 
 def evaluate(model: Any,
              X_train: pd.DataFrame, y_train: pd.Series,
@@ -20,7 +22,7 @@ ArrayLike1D = Sequence[int] | np.ndarray | pd.Series
 
 def get_metrics(y_true: ArrayLike1D, 
                 y_predictions : ArrayLike1D, 
-                y_score: Sequence[float] | np.ndarray | pd.Series, 
+                y_score: Sequence[float] | np.ndarray | pd.Series,
                 digits:int = 3) -> dict[str, Any]:
     """
     Computes a set of classification metrics for model evaluation.
@@ -58,7 +60,7 @@ def get_metrics(y_true: ArrayLike1D,
         'confusion' : confusion_matrix(y_true=y_true, y_pred=y_pred)
     }
 
-def format_metrics(metrics: Mapping[str, Any]) -> str:
+def format_metrics(metrics: Mapping[str, Any], duration: datetime ) -> str:
     """
     Build a nicely formatted string from a metrics dict like:
       {
@@ -70,6 +72,7 @@ def format_metrics(metrics: Mapping[str, Any]) -> str:
     lines: list[str] = []
     lines.append("=" * 60)
     lines.append("MODEL EVALUATION SUMMARY")
+    lines.append(f"Model training duration: {duration.total_seconds()}")
     lines.append("=" * 60)
 
     # ROC AUC
@@ -130,16 +133,17 @@ def format_metrics(metrics: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def print_metrics(metrics: Mapping[str, Any]) -> None:
+def print_metrics(metrics: Mapping[str, Any], duration: datetime) -> None:
     """Print the formatted metrics summary."""
-    print(format_metrics(metrics))
+    print(format_metrics(metrics, duration))
 
 def get_and_print_metrics(y_true: ArrayLike1D, 
                 y_predictions : ArrayLike1D, 
                 y_score: Sequence[float] | np.ndarray | pd.Series, 
+                duration: datetime,
                 digits:int = 3) -> dict[str, Any]:
     
     metrics = get_metrics(y_true, y_predictions, y_score, digits)
-    print_metrics(metrics)
+    print_metrics(metrics, duration)
     return metrics
     

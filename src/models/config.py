@@ -9,7 +9,3 @@ PROCESSED_DATA_PATH = DATA_DIR / "processed"
 TRAIN_CUTOFF = '2019-01-01'
 VALIDATE_CUTOFF = '2022-01-01'
 
-MODELS = {
-    'basic_lr' : 'basic lbfgs solver with l2 penalty, 2000 iter',
-    'basic_lr_cv' : 'basic lbfgs solver with l2 penalty, cross validate, l2 penalty, roc_auc scoring'
-}
