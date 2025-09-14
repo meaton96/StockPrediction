@@ -32,7 +32,7 @@ def main():
     print(f'done cleaning data')
     print(f'begin feature engineering')
 
-    # build egineered features
+    # build engineered features
     # one day % return
     # lag price data
     # 5 and 20 day SMA

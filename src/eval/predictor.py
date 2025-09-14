@@ -38,5 +38,5 @@ def main(argv: list[str] | None = None) -> None:
     metrics = predictor.run()
     print_metrics(metrics)
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()

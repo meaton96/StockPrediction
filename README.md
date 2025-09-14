@@ -16,8 +16,8 @@ pip install -r requirements.txt
 
 1. Get data using the api entry point:
 
-```jsx
-python -m app.api
+```bash
+python -m app.get_data
 ```
 
 This will pull the list of tickers from **data/tickers.json** To add tickers, update the active list in the json file
@@ -26,7 +26,7 @@ This will pull the list of tickers from **data/tickers.json** To add tickers, up
 Run a model using the cli
 
 ```bash
-python -m src.models.predictor --model basic_lr --ticker AAPL
+python -m app.eval --model basic_lr --ticker AAPL
 ```
 
 This will print AUC ROC scores, the classification report, and confusion matrix information after running the basic logistic regression model
