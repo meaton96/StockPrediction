@@ -112,7 +112,7 @@ def main(argv: list[str] | None = None) -> None:
     print('Running.....')
 
     for ticker in ticker_list:
-        print(f'evaluating Logrithmic Regression on {ticker}')
+        print(f'evaluating Logistic Regression on {ticker}')
         predictors[ticker].run()
         print(f'{ticker} done..')
 

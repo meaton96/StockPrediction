@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from typing import Iterable
 
+
 def make_features(
     ticker: str,
     df: pd.DataFrame,
@@ -23,7 +24,8 @@ def make_features(
     out = add_obv(out)
     out = add_intraday_range(out)
     out = add_gap(out)
-    out = add_target_up_next_day(out)
+  #  out = add_target_up_next_day(out)
+    out = add_target_threshold(out)
 
     # Drop rows with NaNs produced by rolling windows
     if dropna_final:
@@ -105,5 +107,87 @@ def add_gap(df: pd.DataFrame) -> pd.DataFrame:
 def add_target_up_next_day(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     out["Target"] = (out["Close"].shift(-1) > out["Close"]).astype(int)
+    return out
+
+def add_target_ternary(df: pd.DataFrame, horizon: int = 5, band: float = 0.005) -> pd.DataFrame:
+    out = df.copy()
+    fwd_return = out["Close"].shift(-horizon) / out["Close"] - 1
+    out[f"Target_{horizon}d_tern"] = pd.Series(
+        np.where(fwd_return > band, 1,
+                 np.where(fwd_return < -band, -1, 0)),
+        index=df.index
+    )
+    return out
+
+def add_target_threshold(df: pd.DataFrame, horizon: int = 5, threshold: float = 0.01) -> pd.DataFrame:
+    out = df.copy()
+    fwd_return = out["Close"].shift(-horizon) / out["Close"] - 1
+    out[f"Target"] = (fwd_return > threshold).astype(int)
+    return out
+
+def add_target(
+    df: pd.DataFrame,
+    *,
+    price_col: str = "Close",
+    horizon: int = 3,
+    threshold: float | None = None,   # if None, threshold = 0 for binary; for ternary use neutral_band
+    neutral_band: float = 0.005,      # 0.5% dead zone for ternary labels
+    label_style: str = "binary",      # "binary" or "ternary"
+    use_log_return: bool = False,
+    dropna_tail: bool = True
+) -> pd.DataFrame:
+    """
+    Add forward return and classification target.
+
+    Returns:
+      - R_{h}d[_log]: forward return over `horizon` days (pct or log)
+      - Target_*:    labels per `label_style`
+          binary: 1 if return > threshold (or >0 if threshold is None), else 0
+          ternary: 1 if return > band, -1 if return < -band, else 0
+    Notes:
+      - Last `horizon` rows are NaN-labeled to avoid look-ahead bias.
+    """
+    if horizon < 1:
+        raise ValueError("horizon must be >= 1")
+    if label_style not in {"binary", "ternary"}:
+        raise ValueError("label_style must be 'binary' or 'ternary'")
+    if price_col not in df.columns:
+        raise KeyError(f"price_col '{price_col}' not found in df")
+
+    out = df.copy()
+
+    # forward return
+    fwd_ratio = out[price_col].shift(-horizon) / out[price_col]
+    if use_log_return:
+        fwd_ret = np.log(fwd_ratio)
+        rname = f"R_{horizon}d_log"
+    else:
+        fwd_ret = fwd_ratio - 1.0
+        rname = f"R_{horizon}d"
+
+    out[rname] = fwd_ret
+
+    # labels
+    if label_style == "binary":
+        thr = 0.0 if threshold is None else float(threshold)
+        tname = f"Target_{horizon}d_gt{thr:.2%}" if threshold is not None else f"Target_{horizon}d_up"
+        labels = (out[rname] > thr).astype("Int64")  # nullable ints so tail NaNs are allowed
+    else:
+        band = float(neutral_band if threshold is None else threshold)
+        tname = f"Target_{horizon}d_tern_b{band:.2%}"
+        labels = pd.Series(np.where(out[rname] > band, 1,
+                           np.where(out[rname] < -band, -1, 0)), index=out.index, dtype="Int64")
+
+    # kill the tail to prevent leakage
+    if horizon > 0:
+        tail_idx = out.index[-horizon:]
+        out.loc[tail_idx, [rname]] = np.nan
+        out.loc[tail_idx, [tname]] = pd.NA
+
+    out[tname] = labels
+
+    if dropna_tail:
+        out = out.dropna(subset=[rname, tname])
+
     return out
 
