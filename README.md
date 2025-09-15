@@ -22,19 +22,15 @@ python -m app.get_data
 
 This will pull the list of tickers from **data/tickers.json** To add tickers, update the active list in the json file
 
-1. Run a model
-Run a model using the cli
+
+Run the model using the cli
 
 ```bash
-python -m app.eval --model basic_lr --ticker AAPL
+python -m app.eval
 ```
 
-This will print AUC ROC scores, the classification report, and confusion matrix information after running the basic logistic regression model
+This will run the logisitic regression model across the tickers listed in **data/tickers.json** and aggregate the data in the data/model_metrics folder
 
-Available commands:
+Regression model uses cross validation once per ticker to find the best inverse of the regularization strength, then runs walk forward 20 day rolling validation across the training and validation sets. Then runs a final test on the test data. 
 
-—models-list prints list of available models
-
-—model [model] to chose which model to run
-
-—ticker [ticker] to chose which ticker to run on, needs to have a processed data file ready
+Data is aggregated across tickers and stored as csv
