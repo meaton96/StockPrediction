@@ -33,6 +33,7 @@ def evaluate(model: Any,
     proba = model.predict_proba(X_test)[:, 1]
     pred  = (proba >= 0.5).astype(int)
     
+    
     return get_metrics(y_true=y_true, y_predictions=pred, y_score=proba)
 
 

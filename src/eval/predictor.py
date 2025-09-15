@@ -12,7 +12,7 @@ from src.data.loader import load_data_bundle
 from src.eval.metrics import evaluate_on, print_wfv_and_test, get_multi_metrics_df,plot_classification_diagnostics
 from src.eval.walkforward import walk_forward_evaluate
 from src.models.config import DATA_DIR, WF_MIN_TRAIN, WF_HORIZON, WF_STEP
-from src.models.log_reg.logistic_regression import basic_lr_cv, basic_lr
+from src.models.logistic_regression import basic_lr_cv, basic_lr
 import json
 
 
@@ -74,7 +74,7 @@ class StockPredictor:
         end_time = datetime.now()
         self.train_time = end_time - start_time
 
-        # Store a compact dict for upstream code; you can expand this if you want
+        # Store a compact dict for upstream code;
         self.metrics = {
             "walk_forward": {
                 "folds": wfv["folds"],
@@ -119,16 +119,16 @@ def main(argv: list[str] | None = None) -> None:
     print(f'Finished evalulating models aggregating data')
 
     df = get_multi_metrics_df(predictors)
-    df.to_csv(DATA_DIR / f"model_metrics/Logrithmic Regression_final_test.csv", index=False)
+    df.to_csv(DATA_DIR / f"model_metrics/lr_final_test.csv", index=False)
 
     from src.eval.metrics import get_wfv_summary_df, get_wfv_folds_df
     wfv_summary = get_wfv_summary_df(predictors)
     if not wfv_summary.empty:
-        wfv_summary.to_csv(DATA_DIR / f"model_metrics/Logrithmic Regression_wfv_summary.csv", index=False)
+        wfv_summary.to_csv(DATA_DIR / f"model_metrics/lr_wfv_summary.csv", index=False)
 
     wfv_folds = get_wfv_folds_df(predictors)
     if not wfv_folds.empty:
-        wfv_folds.to_csv(DATA_DIR / f"model_metrics/Logrithmic Regression_wfv_folds.csv", index=False)
+        wfv_folds.to_csv(DATA_DIR / f"model_metrics/lr_wfv_folds.csv", index=False)
 
 
     # df = get_multi_metrics_df(predictors)

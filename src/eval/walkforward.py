@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple
 import numpy as np
 import pandas as pd
-from src.models.log_reg.logistic_regression import basic_lr
+from src.models.logistic_regression import basic_lr
 from src.eval.metrics import get_metrics, flatten_metrics
 #from src.models.registry import build_model
 
@@ -114,11 +114,7 @@ def walk_forward_evaluate(
 
         # threshold matches prevalence
         p = float(y_tr.mean())
-        if 0 < p < 1:
-            thr = np.quantile(proba_tr, 1 - p)
-        else:
-            thr = 0.5
-        thr = np.quantile(proba_tr, 1 - p)
+        thr = np.quantile(proba_tr, 1 - p) if 0 < p < 1 else 0.5
         preds = (proba_te >= thr).astype(int)
 
         
@@ -142,7 +138,10 @@ def walk_forward_evaluate(
     flat_rows = []
     for fr in folds_out:
         row = flatten_metrics(fr.metrics, ticker="N/A", model=model_name)
-       
+        row['test_start'] = fr.test_start
+        row['test_end'] = fr.test_end
+        row['train_start'] = fr.train_start
+        row['train_end'] = fr.train_end
 
         row.pop("ticker", None)
         row.pop("model", None)
