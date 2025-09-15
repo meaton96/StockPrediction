@@ -22,8 +22,8 @@ python -m app.get_data
 
 This will pull the list of tickers from **data/tickers.json** To add tickers, update the active list in the json file
 
-1. Run a model
-Run a model using the cli
+
+Run the model using the cli
 
 ```bash
 python -m app.eval
