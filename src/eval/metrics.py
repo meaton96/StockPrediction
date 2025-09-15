@@ -10,6 +10,20 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 
+ArrayLike1D = Sequence[int] | np.ndarray | pd.Series
+
+
+def evaluate_on(
+    model: Any,
+    X_train: pd.DataFrame, y_train: pd.Series,
+    X_test: pd.DataFrame,  y_true: pd.Series,
+    threshold: float = 0.5
+) -> Dict[str, Any]:
+    model.fit(X_train, y_train)
+    proba = model.predict_proba(X_test)[:, 1]
+    pred  = (proba >= threshold).astype(int)
+    return get_metrics(y_true=y_true, y_predictions=pred, y_score=proba)
+
 
 def evaluate(model: Any,
              X_train: pd.DataFrame, y_train: pd.Series,
@@ -21,13 +35,14 @@ def evaluate(model: Any,
     
     return get_metrics(y_true=y_true, y_predictions=pred, y_score=proba)
 
-ArrayLike1D = Sequence[int] | np.ndarray | pd.Series
+
 
 
 def get_metrics(y_true: ArrayLike1D, 
                 y_predictions: ArrayLike1D, 
                 y_score: Sequence[float] | np.ndarray | pd.Series,
-                digits: int = 3) -> dict[str, Any]:
+                digits: int = 3,
+                clf_report: bool = True) -> dict[str, Any]:
 
     y_true = np.asarray(y_true)
     y_pred = np.asarray(y_predictions)
@@ -37,10 +52,22 @@ def get_metrics(y_true: ArrayLike1D,
         raise ValueError("y_true, y_pred, and y_score must be 1D.")
     if not (len(y_true) == len(y_pred) == len(y_score)):
         raise ValueError("Lengths must match.")
+    
+    try:
+        roc = roc_auc_score(y_true, y_score)
+    except ValueError:
+        roc = float("nan")
+    
+    clf_txt = classification_report(
+        y_true=y_true,
+        y_pred=y_pred,
+        digits=digits,
+        zero_division=0
+    ) if clf_report else ""
 
     return {
-        'roc_auc': roc_auc_score(y_true, y_score),
-        'clf_report': classification_report(y_true=y_true, y_pred=y_pred, digits=digits),
+        'roc_auc': roc,
+        'clf_report': clf_txt,
         'confusion': confusion_matrix(y_true=y_true, y_pred=y_pred),
         'y_true': y_true,
         'y_pred': y_pred,
@@ -50,36 +77,56 @@ def get_metrics(y_true: ArrayLike1D,
 def get_multi_metrics_df(predictors: dict[str, Any]) -> pd.DataFrame:
     rows = []
     for ticker, predictor in predictors.items():
-        row = flatten_metrics(predictor.metrics, ticker, predictor.model_name)
-        rows.append(row)
+        m = predictor.metrics
+        if not m:
+            continue
 
+        # Prefer the proper held-out test metrics
+        if "final_test" in m and isinstance(m["final_test"], dict):
+            row = flatten_metrics(m["final_test"], ticker, predictor.model_name)
+            rows.append(row)
+
+        # If for some reason final_test is missing but old flat metrics exist, fall back
+        elif "confusion" in m:
+            row = flatten_metrics(m, ticker, predictor.model_name)
+            rows.append(row)
+
+        # Otherwise skip this ticker silently
     return pd.DataFrame(rows)
 
-def flatten_metrics(metrics: dict, ticker: str, model: str) -> dict:
-    cm = metrics["confusion"].ravel()
-    tn, fp, fn, tp = cm
-    acc = (tn + tp) / cm.sum()
 
-    # classification_report with output_dict=True
-    rep = classification_report(metrics["y_true"], metrics["y_pred"], output_dict=True)
+def flatten_metrics(metrics: dict, ticker: str, model: str) -> dict:
+    cm = np.asarray(metrics.get("confusion"))
+    if cm.size != 4:  # not 2x2
+        tn = fp = fn = tp = np.nan
+        acc = np.nan
+    else:
+        tn, fp, fn, tp = cm.ravel()
+        acc = (tn + tp) / cm.sum() if cm.sum() > 0 else np.nan
+
+    rep = classification_report(
+        metrics.get("y_true"), metrics.get("y_pred"),
+        output_dict=True, zero_division=0
+    )
 
     return {
         "ticker": ticker,
         "model": model,
-        "roc_auc": metrics["roc_auc"],
+        "roc_auc": float(metrics.get("roc_auc", np.nan)),
         "accuracy": acc,
-        "precision_0": rep["0"]["precision"],
-        "recall_0": rep["0"]["recall"],
-        "f1_0": rep["0"]["f1-score"],
-        "support_0": rep["0"]["support"],
-        "precision_1": rep["1"]["precision"],
-        "recall_1": rep["1"]["recall"],
-        "f1_1": rep["1"]["f1-score"],
-        "support_1": rep["1"]["support"],
-        "macro_f1": rep["macro avg"]["f1-score"],
-        "weighted_f1": rep["weighted avg"]["f1-score"],
+        "precision_0": rep.get("0", {}).get("precision", np.nan),
+        "recall_0": rep.get("0", {}).get("recall", np.nan),
+        "f1_0": rep.get("0", {}).get("f1-score", np.nan),
+        "support_0": rep.get("0", {}).get("support", np.nan),
+        "precision_1": rep.get("1", {}).get("precision", np.nan),
+        "recall_1": rep.get("1", {}).get("recall", np.nan),
+        "f1_1": rep.get("1", {}).get("f1-score", np.nan),
+        "support_1": rep.get("1", {}).get("support", np.nan),
+        "macro_f1": rep.get("macro avg", {}).get("f1-score", np.nan),
+        "weighted_f1": rep.get("weighted avg", {}).get("f1-score", np.nan),
         "tn": tn, "fp": fp, "fn": fn, "tp": tp
     }
+
 
 
 def format_metrics(metrics: Mapping[str, Any], duration: datetime ) -> str:
@@ -233,3 +280,52 @@ def plot_classification_diagnostics(metrics: Mapping[str, Any], title: str | Non
 
     plt.tight_layout()
     plt.show()
+
+def print_wfv_and_test(metrics: Mapping[str, Any], duration) -> None:
+
+    wfv = metrics["walk_forward"]
+    testm = metrics["final_test"]
+
+    print("=" * 60)
+    print("WALK-FORWARD SUMMARY (mean ± std across folds)")
+    if wfv["summary"]:
+        for k, v in wfv["summary"].items():
+            # pair mean/std lines
+            if k.endswith("_mean"):
+                base = k[:-5]
+                mean = v
+                std = wfv["summary"].get(f"{base}_std", 0.0)
+                print(f"{base:>12}: {mean:.4f} ± {std:.4f}")
+    else:
+        print("No folds produced. Check min_train/horizon vs data length.")
+
+    print("-" * 60)
+    print("FINAL TEST EVALUATION (train = train+validate; test = held-out)")
+    print(format_metrics(testm, duration))
+
+    print("=" * 60)
+
+def get_wfv_summary_df(predictors: dict[str, Any]) -> pd.DataFrame:
+    rows = []
+    for ticker, predictor in predictors.items():
+        m = predictor.metrics or {}
+        wf = m.get("walk_forward", {})
+        summary = wf.get("summary", {})
+        if not summary:
+            continue
+        row = {"ticker": ticker, "model": predictor.model_name}
+        row.update(summary)
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+def get_wfv_folds_df(predictors: dict[str, Any]) -> pd.DataFrame:
+    frames = []
+    for ticker, predictor in predictors.items():
+        m = predictor.metrics or {}
+        wf = m.get("walk_forward", {})
+        ft = wf.get("folds_table", None)
+        if ft is None or getattr(ft, "empty", True):
+            continue
+        frames.append(ft)
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+

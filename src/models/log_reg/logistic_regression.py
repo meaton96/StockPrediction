@@ -3,38 +3,33 @@ from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
 from sklearn.model_selection import TimeSeriesSplit
 
 
-def basic_lr() -> LogisticRegression:
+def basic_lr(C: float = 1.0) -> LogisticRegression:
     reg_model = LogisticRegression(
         penalty='l2',
-        C=1.0,
+        C=C,
         solver='lbfgs',
         max_iter=2000,
-        n_jobs=None,
+        n_jobs=-1,
+        tol=1e-3,
         class_weight="balanced",
         random_state=42
     )
     return reg_model
 
-def basic_lr_cv(
-        n_splits: int = 5,
-        Cs: list[float] = [0.01, 0.03, 0.1, 0.3, 1, 3, 10],
-        scoring: str = 'roc_auc',
-        penalty: str = 'l2',
-        solver: str = 'lbfgs',
-        max_iter: int = 5000
-          ) -> LogisticRegressionCV:
-    ts_cv = TimeSeriesSplit(n_splits=n_splits)
-    
+def basic_lr_cv() -> LogisticRegressionCV:
+
+    tscv = TimeSeriesSplit(n_splits=5)
     return LogisticRegressionCV(
-        Cs=Cs,
-        cv=ts_cv,
-        scoring=scoring,
-        penalty=penalty,
-        solver=solver,
-        class_weight="balanced",
-        max_iter=max_iter,
+        Cs=[0.03, 0.1, 0.3, 1, 3],
+        cv=tscv,
+        scoring='roc_auc',
+        penalty='l2',
+        solver='lbfgs',
+        class_weight='balanced',
+        max_iter=2000,
+        n_jobs=-1,    
         random_state=42
-    )
+)
 
 
 def lrcv_en(

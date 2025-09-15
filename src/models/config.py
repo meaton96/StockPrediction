@@ -9,3 +9,9 @@ PROCESSED_DATA_PATH = DATA_DIR / "processed"
 TRAIN_CUTOFF = '2019-01-01'
 VALIDATE_CUTOFF = '2022-01-01'
 
+
+WF_MIN_TRAIN = max(300, int(3 * 252))  # 3 years
+WF_HORIZON = 20 # 20 trading days / 1 month
+WF_STEP = 20
+
+
