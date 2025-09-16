@@ -3,6 +3,8 @@ from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
 from sklearn.model_selection import TimeSeriesSplit
 
 
+
+
 def basic_lr(C: float = 1.0) -> LogisticRegression:
     reg_model = LogisticRegression(
         penalty='l2',
@@ -56,3 +58,5 @@ def lrcv_en(
         max_iter=max_iter,
         random_state=42
     )
+
+

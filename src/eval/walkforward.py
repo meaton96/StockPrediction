@@ -3,8 +3,14 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple
 import numpy as np
 import pandas as pd
-from src.models.logistic_regression import basic_lr
 from src.eval.metrics import get_metrics, flatten_metrics
+from typing import Dict, Any
+import pandas as pd
+from src.models.config import WF_HORIZON, WF_MIN_TRAIN, WF_STEP
+from src.eval.metrics import evaluate_on
+from src.data.bundle import DataBundle
+from src.models.logistic_regression import basic_lr, basic_lr_cv
+
 #from src.models.registry import build_model
 
 
@@ -18,6 +24,60 @@ class FoldResult:
     n_train: int
     n_test: int
     metrics: Dict[str, Any]
+
+
+def run_lr_model(bundle: DataBundle, model_name: str, ticker: str)-> Dict[str, Any]:
+    
+        # Combine train + validate for rolling CV
+        X_cv = pd.concat([bundle.X_train, bundle.X_validate])
+        y_cv = pd.concat([bundle.y_train, bundle.y_validate])
+
+        lr_cv = basic_lr_cv()
+
+        lr_cv.fit(X_cv, y_cv)
+
+        best_C = float(lr_cv.C_[0])
+        
+
+        
+        min_train = WF_MIN_TRAIN
+        horizon = WF_HORIZON
+        step = WF_STEP
+
+        wfv = walk_forward_evaluate(
+            model_name=model_name,
+            C=best_C,
+            X=X_cv, y=y_cv,
+            min_train=min_train,
+            horizon=horizon,
+            step=step,
+            expanding=True,
+        )
+        
+
+        # Final test: train on train+validate, evaluate on test exactly once
+        final_test_metrics = evaluate_on(
+            model=basic_lr(best_C),  # fresh model
+            X_train=X_cv, y_train=y_cv,
+            X_test=bundle.X_test, y_true=bundle.y_test
+        )
+
+
+        # Store a compact dict for upstream code;
+        metrics = {
+            "walk_forward": {
+                "folds": wfv["folds"],
+                "summary": wfv["summary"],
+            },
+            "final_test": final_test_metrics,
+        }
+        folds_table = wfv["folds_table"].copy()
+        if not folds_table.empty:
+            folds_table.insert(0, "ticker", ticker)
+            folds_table.insert(1, "model", model_name)
+            # stash it so multi-ticker aggregator can write it later
+            metrics["walk_forward"]["folds_table"] = folds_table
+        return metrics
 
 def _rolling_splits(
     n: int,
