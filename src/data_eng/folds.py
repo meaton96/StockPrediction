@@ -1,7 +1,7 @@
 # src/data_eng/folds.py
 
 from __future__ import annotations
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, cast
 import pandas as pd
 from pandas.tseries.frequencies import to_offset
 
@@ -39,7 +39,7 @@ def calendar_blocks(start: pd.Timestamp, end: pd.Timestamp, conf: Config) -> Lis
     if start >= end:
         return []
     # Build edges with given frequency; ensure we include the final end
-    edges = pd.date_range(start=start, end=end, freq=conf.fold_len).to_list()
+    edges = pd.date_range(start=start, end=end, freq=cast(str, conf.fold_len)).to_list()
     if not edges or edges[0] != start:
         edges = [start] + edges
     if edges[-1] < end:
