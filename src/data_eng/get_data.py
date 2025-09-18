@@ -2,12 +2,15 @@ from __future__ import annotations
 import pandas as pd
 from datetime import datetime, date
 from typing import Tuple
-from src.config import PROCESSED_DATA_PATH, TRAIN_CUTOFF, VALIDATE_CUTOFF
+from src.config import Config
 
 
 
 
-def read_csv(ticker: str, **kwargs) -> pd.DataFrame:
+
+
+
+def read_csv(ticker: str, conf: Config, **kwargs) -> pd.DataFrame:
     """
     Reads a CSV file and returns a pandas DataFrame.
 
@@ -20,12 +23,13 @@ def read_csv(ticker: str, **kwargs) -> pd.DataFrame:
     """
     if "parse_dates" not in kwargs:
         kwargs["parse_dates"] = ["Date"]
-    return pd.read_csv(PROCESSED_DATA_PATH / f'{ticker}.csv', **kwargs)
+    return pd.read_csv(conf.processed_data_path / f'{ticker}.csv', **kwargs)
 
 
 
 def prep_data(
     df: pd.DataFrame,
+    conf: Config
     ):
     if "Date" in df.columns:
         dates = pd.to_datetime(df["Date"])
@@ -34,8 +38,8 @@ def prep_data(
     else:
         raise KeyError('Dataframe must have a "Date" column or a DatetimeIndex')
 
-    train_cutoff = pd.Timestamp(TRAIN_CUTOFF)
-    validate_cutoff = pd.Timestamp(VALIDATE_CUTOFF)
+    train_cutoff = pd.Timestamp(conf.train_cutoff)
+    validate_cutoff = pd.Timestamp(conf.validate_cutoff)
 
     m_train = dates < train_cutoff
     m_val   = (dates >= train_cutoff) & (dates < validate_cutoff)

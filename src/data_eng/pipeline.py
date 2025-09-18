@@ -10,7 +10,7 @@ from src.config import Config
 
 
 
-def main(
+def run_pipeline(
     conf: Config
 ):
 
@@ -54,5 +54,5 @@ def main(
 
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
