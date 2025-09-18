@@ -144,8 +144,15 @@ def add_target_ternary(df: pd.DataFrame, horizon: int = 5, band: float = 0.005) 
 
 def add_target_threshold(df: pd.DataFrame, horizon: int = 5, threshold: float = 0.01) -> pd.DataFrame:
     out = df.copy()
-    fwd_return = out["Close"].shift(-horizon) / out["Close"] - 1
-    out[f"Target"] = (fwd_return > threshold).astype(int)
+
+    fwd = df["Close"].shift(-1) / df["Close"] - 1
+    wins = []
+    for k in range(1, 6):
+        wins.append(df["Close"].shift(-k) / df["Close"] - 1)  # return in k days
+    out["Target"] = (pd.concat(wins, axis=1).max(axis=1) > 0.01).astype(int)
+  #  fwd_return = out["Close"].shift(-horizon) / out["Close"] - 1
+
+  #  out[f"Target"] = (fwd_return > threshold).astype(int)
     return out
 
 def add_target(
