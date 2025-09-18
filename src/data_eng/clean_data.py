@@ -7,14 +7,14 @@ from pathlib import Path
 
 def cleaning_pipeline(ticker: str, raw_path: Path) -> pd.DataFrame:
     df = load_csv_data(ticker, raw_path)
-    print(f'pre-cleaning qc check on {ticker}')
-    print(qc_report(df))
+   # print(f'pre-cleaning qc check on {ticker}')
+#    print(qc_report(df))
     de_dupe = clean_duplicates(df)
     de_nan = prune_nans(de_dupe)
     no_outliers, drop_log, qc = clean_outliers(de_nan, ticker)
-    print(f'Outlier detection for {ticker}')
-    print(drop_log)
-    print(qc)
+   # print(f'Outlier detection for {ticker}')
+   # print(drop_log)
+  #  print(qc)
     return no_outliers
 
 #raw_path = r'/content/drive/MyDrive/StockPricePredictor/data/raw'

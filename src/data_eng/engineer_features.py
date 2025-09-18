@@ -1,31 +1,54 @@
 import pandas as pd
 import numpy as np
-from typing import Iterable
+from typing import Iterable, Dict, Any
 
 
 def make_features(
     ticker: str,
     df: pd.DataFrame,
+    features: list[str],
+    target: Dict[str, Any],
     dropna_final: bool = True
 ) -> pd.DataFrame:
     """
     Build a standard feature set on top of cleaned OHLCV.
     Assumes df has columns: Open, High, Low, Close, Volume and a DatetimeIndex.
+
+    Features are determined by the features list, default adds all:
+    ['r_1d, lag, sma, vix, rsi, macd, boll, range, gap']
     """
     print(f'make features for {ticker}')
     out = df.copy()
-    out = add_return_1d(out)
-    out = add_lags(out, base_col="Return_1d", lags=(1, 2, 3, 5))
-    out = add_sma_features(out, short=5, long=20)
-    out = add_volatility(out, window=20, ret_col="Return_1d")
-    out = add_rsi(out, window=14)
-    out = add_macd(out, fast=12, slow=26, signal=9)
-    out = add_bollinger(out, window=20, n_std=2.0)
-    out = add_obv(out)
-    out = add_intraday_range(out)
-    out = add_gap(out)
-  #  out = add_target_up_next_day(out)
-    out = add_target_threshold(out)
+    # Ensure features is a list of strings, not a single comma-separated string
+    if isinstance(features, str):
+        features = [f.strip() for f in features.split(',')]
+    elif features and isinstance(features[0], str) and ',' in features[0]:
+        features = [f.strip() for f in features[0].split(',')]
+
+    if 'r_1d' in features:
+        out = add_return_1d(out)
+    if ['lag', 'r_1d'] in features:
+        out = add_lags(out, base_col="Return_1d", lags=(1, 2, 3, 5))
+    if 'sma' in features:
+        out = add_sma_features(out, short=5, long=20)
+    if ['lag', 'r_1d', 'vix'] in features:
+        out = add_volatility(out, window=20, ret_col="Return_1d")
+    if 'rsi' in features:
+        out = add_rsi(out, window=14)
+    if 'macd' in features:
+        out = add_macd(out, fast=12, slow=26, signal=9)
+    if 'boll' in features:
+        out = add_bollinger(out, window=20, n_std=2.0)
+    if 'obv' in features:
+        out = add_obv(out)
+    if 'range' in features:
+        out = add_intraday_range(out)
+    if 'gap' in features:
+        out = add_gap(out)
+
+    _horizon = target.get('horizon', 5)
+    _threshold = target.get('threshold', 0.01)
+    out = add_target_threshold(out, _horizon, _threshold)
 
     # Drop rows with NaNs produced by rolling windows
     if dropna_final:

@@ -2,7 +2,7 @@ from __future__ import annotations
 import pandas as pd
 from datetime import datetime, date
 from typing import Tuple
-from src.models.config import PROCESSED_DATA_PATH, TRAIN_CUTOFF, VALIDATE_CUTOFF
+from src.config import PROCESSED_DATA_PATH, TRAIN_CUTOFF, VALIDATE_CUTOFF
 
 
 
@@ -26,8 +26,6 @@ def read_csv(ticker: str, **kwargs) -> pd.DataFrame:
 
 def prep_data(
     df: pd.DataFrame,
-    train_cutoff: str = "2019-01-01",
-    validate_cutoff: str = "2022-01-01",
     ):
     if "Date" in df.columns:
         dates = pd.to_datetime(df["Date"])
@@ -36,8 +34,8 @@ def prep_data(
     else:
         raise KeyError('Dataframe must have a "Date" column or a DatetimeIndex')
 
-    train_cutoff = pd.Timestamp(train_cutoff)
-    validate_cutoff = pd.Timestamp(validate_cutoff)
+    train_cutoff = pd.Timestamp(TRAIN_CUTOFF)
+    validate_cutoff = pd.Timestamp(VALIDATE_CUTOFF)
 
     m_train = dates < train_cutoff
     m_val   = (dates >= train_cutoff) & (dates < validate_cutoff)

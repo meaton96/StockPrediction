@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 def fetch_ticker_data(ticker_list: Any, raw_path: Path):
-
+    #print(ticker_list)
     for ticker in ticker_list:
         fetch_and_save(ticker, raw_path)
 
