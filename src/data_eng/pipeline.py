@@ -1,6 +1,6 @@
 from .fetch_data import fetch_ticker_data
 from .clean_data import cleaning_pipeline
-from .engineer_features import make_features
+from .engineer_features import make_features, add_interaction_features
 from .write_data import dump_csvs
 import pandas as pd
 from src.config import Config
@@ -46,6 +46,10 @@ def run_pipeline(
     # target (prediction) column: 5 day price horizon up 1%
     for key, value in frames.items():
         frames[key] = make_features(key, value, conf.features, conf.target)
+        if conf.add_int_features:
+            frames[key] = add_interaction_features(frames[key])
+
+    
 
     print('Done egineering features')
 

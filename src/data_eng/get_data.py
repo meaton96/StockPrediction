@@ -25,7 +25,27 @@ def read_csv(ticker: str, conf: Config, **kwargs) -> pd.DataFrame:
         kwargs["parse_dates"] = ["Date"]
     return pd.read_csv(conf.processed_data_path / f'{ticker}.csv', **kwargs)
 
+def get_train_test_data(conf: Config
+                        ) -> Tuple[pd.DataFrame , pd.Series,pd.DataFrame, pd.Series]:
 
+    df = pd.DataFrame()
+
+    for ticker in conf.ticker_list:
+        df = pd.concat([df, read_csv(ticker, conf)])
+    
+    q = df['Date'] < conf.train_cutoff
+
+    df_train = df[q]
+    df_test = df[~q]
+
+    X_train = df_train.drop(columns=['Target'])
+    X_test = df_test.drop(columns=['Target'])
+
+    y_train = df_train['Target']
+    y_test = df_test['Target']
+
+    return (X_train, y_train, X_test, y_test)
+    
 
 def prep_data(
     df: pd.DataFrame,

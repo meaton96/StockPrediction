@@ -7,6 +7,7 @@ class Config:
     def __init__(
         self,
         features: Optional[List[str]] = None,
+        add_int_features: Optional[bool] = True,
         target: Optional[Dict[str, float]] = None,
         ticker_list: Optional[List[str]] = None,
         # interpret validate_cutoff as the start of FINAL TEST
@@ -37,32 +38,34 @@ class Config:
         self.sliding_train_years = sliding_train_years
         self.embargo_days = embargo_days  # if None, we’ll fill from target.horizon
         self.raw_path = Path('../data/raw')
+        self.add_int_features = add_int_features
 
-    def set_config(
-        self,
-        features: Optional[List[str]] = None,
-        target: Optional[Dict[str, float]] = None,
-        ticker_list: Optional[List[str]] = None,
-        train_cutoff: Optional[str] = None,
-        validate_cutoff: Optional[str] = None,
-        fold_len: Optional[int] = None,
-        fold_mode: Optional[str] = None,
-        sliding_train_years: Optional[int] = None,
-        embargo_days: Optional[int] = None
-    ) -> None:
-        if features is not None: self.features = features
-        if target is not None: self.target = target
-        if ticker_list is not None: self.ticker_list = ticker_list
-        if train_cutoff is not None: self.train_cutoff = train_cutoff
-        if validate_cutoff is not None: self.validate_cutoff = validate_cutoff
-        if fold_len is not None: self.fold_len = fold_len
-        if fold_mode is not None: self.fold_mode = fold_mode
-        if sliding_train_years is not None: self.sliding_train_years = sliding_train_years
-        if embargo_days is not None: self.embargo_days = embargo_days
+    # def set_config(
+    #     self,
+    #     features: Optional[List[str]] = None,
+    #     target: Optional[Dict[str, float]] = None,
+    #     ticker_list: Optional[List[str]] = None,
+    #     train_cutoff: Optional[str] = None,
+    #     validate_cutoff: Optional[str] = None,
+    #     fold_len: Optional[int] = None,
+    #     fold_mode: Optional[str] = None,
+    #     sliding_train_years: Optional[int] = None,
+    #     embargo_days: Optional[int] = None
+    # ) -> None:
+    #     if features is not None: self.features = features
+    #     if target is not None: self.target = target
+    #     if ticker_list is not None: self.ticker_list = ticker_list
+    #     if train_cutoff is not None: self.train_cutoff = train_cutoff
+    #     if validate_cutoff is not None: self.validate_cutoff = validate_cutoff
+    #     if fold_len is not None: self.fold_len = fold_len
+    #     if fold_mode is not None: self.fold_mode = fold_mode
+    #     if sliding_train_years is not None: self.sliding_train_years = sliding_train_years
+    #     if embargo_days is not None: self.embargo_days = embargo_days
 
     def to_dict(self) -> Dict:
         return {
             'features': self.features,
+            'interaction_features': self.add_int_features,
             'target': self.target,
             'ticker_list': self.ticker_list,
             'train_cutoff': self.train_cutoff,
@@ -74,4 +77,5 @@ class Config:
             'project_root': str(self.project_root),
             'data_dir': str(self.data_dir),
             'processed_data_path': str(self.processed_data_path)
+            
         }

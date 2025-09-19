@@ -126,22 +126,6 @@ def add_gap(df: pd.DataFrame) -> pd.DataFrame:
     out["CO_gap"] = (out["Close"] - out["Open"]) / out["Open"].replace(0, np.nan)
     return out
 
-# compute target column, price up or down from previous close
-def add_target_up_next_day(df: pd.DataFrame) -> pd.DataFrame:
-    out = df.copy()
-    out["Target"] = (out["Close"].shift(-1) > out["Close"]).astype(int)
-    return out
-
-def add_target_ternary(df: pd.DataFrame, horizon: int = 5, band: float = 0.005) -> pd.DataFrame:
-    out = df.copy()
-    fwd_return = out["Close"].shift(-horizon) / out["Close"] - 1
-    out[f"Target_{horizon}d_tern"] = pd.Series(
-        np.where(fwd_return > band, 1,
-                 np.where(fwd_return < -band, -1, 0)),
-        index=df.index
-    )
-    return out
-
 def add_target_threshold(df: pd.DataFrame, horizon: int = 5, threshold: float = 0.01) -> pd.DataFrame:
     out = df.copy()
 
@@ -155,69 +139,111 @@ def add_target_threshold(df: pd.DataFrame, horizon: int = 5, threshold: float = 
   #  out[f"Target"] = (fwd_return > threshold).astype(int)
     return out
 
-def add_target(
+## Interaction Terms ##
+
+def add_interaction_features(
     df: pd.DataFrame,
     *,
-    price_col: str = "Close",
-    horizon: int = 3,
-    threshold: float | None = None,   # if None, threshold = 0 for binary; for ternary use neutral_band
-    neutral_band: float = 0.005,      # 0.5% dead zone for ternary labels
-    label_style: str = "binary",      # "binary" or "ternary"
-    use_log_return: bool = False,
-    dropna_tail: bool = True
+    return_col: str = "Return_1d",
+    vol_col: str = "Volatility_20",
+    sma_short_col: str = "SMA_5",
+    sma_long_col: str = "SMA_20",
+    sma_ratio_col: str = "SMA_ratio",
+    rsi_col: str | None = None,        # auto-detect if None (e.g. "RSI_14")
+    macd_col: str = "MACD",
+    macd_sig_col: str = "MACD_signal",
+    bb_width_col: str = "BB_width",
+    obv_col: str = "OBV",
+    gap_col: str = "CO_gap",
+    lag_cols: tuple[str, str] = ("Return_1d_lag1", "Return_1d_lag2"),
+    clip_z: float | None = 6.0          # winsorize extreme z-scores; set None to disable
 ) -> pd.DataFrame:
     """
-    Add forward return and classification target.
+    Add a small, opinionated set of interaction/regime features.
+    Only creates a feature if its inputs exist.
 
-    Returns:
-      - R_{h}d[_log]: forward return over `horizon` days (pct or log)
-      - Target_*:    labels per `label_style`
-          binary: 1 if return > threshold (or >0 if threshold is None), else 0
-          ternary: 1 if return > band, -1 if return < -band, else 0
-    Notes:
-      - Last `horizon` rows are NaN-labeled to avoid look-ahead bias.
+    Adds (when possible):
+      - trend_mom__sma_x_rsi              = SMA_ratio * RSI
+      - mom_disagree__macd_minus_rsi      = MACD - RSI
+      - move_vs_vol__ret_over_vol         = Return_1d / Volatility_20
+      - vol_trend__bbwidth_x_smaratio     = BB_width * SMA_ratio
+      - vol_cond__ret_x_vol               = Return_1d * Volatility_20
+      - flow_price__obvZ_x_return         = zscore(OBV) * Return_1d
+      - gap_flow__gap_x_volrel20          = CO_gap * (Volume / SMA20(Volume))
+      - lag_cross__r1_lag1_x_lag2         = Return_1d_lag1 * Return_1d_lag2
+      - lag_vol__r1_lag1_x_vol            = Return_1d_lag1 * Volatility_20
+      - regime__rsi_lt30                  = 1{RSI < 30}
+      - regime__rsi_gt70                  = 1{RSI > 70}
+      - regime__above_sma20               = 1{Close > SMA_20}
+      - regime__bands_widening_1d         = 1{BB_width.pct_change() > 0}
+      - mom_agree__sign_macd_eq_lag1      = 1{sign(MACD) == sign(Return_1d_lag1)}
     """
-    if horizon < 1:
-        raise ValueError("horizon must be >= 1")
-    if label_style not in {"binary", "ternary"}:
-        raise ValueError("label_style must be 'binary' or 'ternary'")
-    if price_col not in df.columns:
-        raise KeyError(f"price_col '{price_col}' not found in df")
-
     out = df.copy()
 
-    # forward return
-    fwd_ratio = out[price_col].shift(-horizon) / out[price_col]
-    if use_log_return:
-        fwd_ret = np.log(fwd_ratio)
-        rname = f"R_{horizon}d_log"
-    else:
-        fwd_ret = fwd_ratio - 1.0
-        rname = f"R_{horizon}d"
+    def _has(*cols: str) -> bool:
+        return all(c in out.columns for c in cols)
 
-    out[rname] = fwd_ret
+    def _z(x: pd.Series) -> pd.Series:
+        mu = x.rolling(100, min_periods=20).mean()
+        sd = x.rolling(100, min_periods=20).std()
+        z = (x - mu) / sd.replace(0, np.nan)
+        if clip_z is not None:
+            z = z.clip(lower=-clip_z, upper=clip_z)
+        return z
 
-    # labels
-    if label_style == "binary":
-        thr = 0.0 if threshold is None else float(threshold)
-        tname = f"Target_{horizon}d_gt{thr:.2%}" if threshold is not None else f"Target_{horizon}d_up"
-        labels = (out[rname] > thr).astype("Int64")  # nullable ints so tail NaNs are allowed
-    else:
-        band = float(neutral_band if threshold is None else threshold)
-        tname = f"Target_{horizon}d_tern_b{band:.2%}"
-        labels = pd.Series(np.where(out[rname] > band, 1,
-                           np.where(out[rname] < -band, -1, 0)), index=out.index, dtype="Int64")
+    # Auto-detect an RSI column if not supplied (e.g., "RSI_14")
+    if rsi_col is None:
+        rsi_candidates = [c for c in out.columns if c.upper().startswith("RSI_")]
+        rsi_col = rsi_candidates[0] if rsi_candidates else None
 
-    # kill the tail to prevent leakage
-    if horizon > 0:
-        tail_idx = out.index[-horizon:]
-        out.loc[tail_idx, [rname]] = np.nan
-        out.loc[tail_idx, [tname]] = pd.NA
+    # 1) Trend vs momentum
+    if _has(sma_ratio_col) and rsi_col and _has(rsi_col):
+        out["trend_mom__sma_x_rsi"] = out[sma_ratio_col] * out[rsi_col]
 
-    out[tname] = labels
+    # 2) Momentum disagreement
+    if rsi_col and _has(macd_col, rsi_col):
+        out["mom_disagree__macd_minus_rsi"] = out[macd_col] - out[rsi_col]
 
-    if dropna_tail:
-        out = out.dropna(subset=[rname, tname])
+    # 3) Move relative to volatility (normalized and multiplicative)
+    if _has(return_col, vol_col):
+        out["move_vs_vol__ret_over_vol"] = out[return_col] / out[vol_col].replace(0, np.nan)
+        out["vol_cond__ret_x_vol"] = out[return_col] * out[vol_col]
+
+    # 4) Volatility-trend coupling
+    if _has(bb_width_col, sma_ratio_col):
+        out["vol_trend__bbwidth_x_smaratio"] = out[bb_width_col] * out[sma_ratio_col]
+
+    # 5) Price/volume pressure
+    if _has(obv_col, return_col):
+        out["flow_price__obvZ_x_return"] = _z(out[obv_col]) * out[return_col]
+
+    # 6) Gap with relative volume
+    if _has(gap_col, "Volume"):
+        vol_ma20 = out["Volume"].rolling(20, min_periods=5).mean()
+        out["gap_flow__gap_x_volrel20"] = out[gap_col] * (out["Volume"] / vol_ma20.replace(0, np.nan))
+
+    # 7) Cross-lag interactions
+    lag1, lag2 = lag_cols
+    if _has(lag1, lag2):
+        out["lag_cross__r1_lag1_x_lag2"] = out[lag1] * out[lag2]
+    if _has(lag1, vol_col):
+        out["lag_vol__r1_lag1_x_vol"] = out[lag1] * out[vol_col]
+
+    # 8) Regime flags
+    if rsi_col and _has(rsi_col):
+        out["regime__rsi_lt30"] = (out[rsi_col] < 30).astype("Int8")
+        out["regime__rsi_gt70"] = (out[rsi_col] > 70).astype("Int8")
+    if _has("Close", sma_long_col):
+        out["regime__above_sma20"] = (out["Close"] > out[sma_long_col]).astype("Int8")
+    if _has(bb_width_col):
+        out["regime__bands_widening_1d"] = (out[bb_width_col].pct_change() > 0).astype("Int8")
+
+    # 9) Momentum agreement signal
+    if _has(macd_col, "Return_1d_lag1"):
+        macd_sign = np.sign(out[macd_col])
+        r1_sign = np.sign(out["Return_1d_lag1"])
+        out["mom_agree__sign_macd_eq_lag1"] = (macd_sign == r1_sign).astype("Int8")
 
     return out
+    
 
