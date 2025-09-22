@@ -5,6 +5,7 @@ import pandas as pd
 from pathlib import Path
 import matplotlib.pyplot as plt
 from typing import Optional, Tuple, Iterable, Callable
+import os
 
 from sklearn.metrics import (
     roc_curve, auc, precision_recall_curve, average_precision_score,
@@ -284,9 +285,16 @@ def run_full_eval_and_plots(
     """
     out_dir = Path(out_dir) if out_dir is not None else None
 
+    if not out_dir.exists():
+        os.mkdir(out_dir)
+
     df_eval = build_eval_frame(pipe, X_test, y_test, proba_strategy=proba_strategy)
 
     roc_path = out_dir / save_roc_as if out_dir else None
+
+
+
+    
     roc_auc_val = plot_roc(df_eval, savepath=roc_path)
     ap_val = plot_pr(df_eval)
     best_youden_thr, best_f1_thr, sweep = plot_threshold_sweep(df_eval)
