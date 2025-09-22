@@ -1,9 +1,25 @@
 from __future__ import annotations
-from typing import List, Tuple
+from typing import List, Tuple, Sequence
 import pandas as pd
 import numpy as np
 
 from src.data_eng.types import MultiTickerFoldCollection
+
+
+def _dropna_xy(
+    X: pd.DataFrame,
+    y: pd.Series,
+    exclude_cols: Sequence[str] = ("__ticker__", "Date"),
+) -> tuple[pd.DataFrame, pd.Series]:
+    """
+    Remove rows where any of the feature columns (excluding `exclude_cols`) are NaN.
+    Assumes X and y are row-aligned.
+    """
+    feature_cols = [c for c in X.columns if c not in exclude_cols]
+    if not feature_cols:
+        return X, y
+    mask = X[feature_cols].isna().any(axis=1)
+    return X.loc[~mask], y.loc[~mask]
 
 def _frame_with_target(X: pd.DataFrame, y: pd.Series, ticker: str) -> pd.DataFrame:
     """
@@ -21,6 +37,9 @@ def _frame_with_target(X: pd.DataFrame, y: pd.Series, ticker: str) -> pd.DataFra
 
 def build_global_fold_pairs(
     collection: MultiTickerFoldCollection,
+    *,
+    dropna_features: bool = True,
+    exclude_cols: Sequence[str] = ("__ticker__", "Date"),
 ) -> List[Tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]]:
     """
     For each aligned fold index k, concatenate train parts from all tickers into one big frame,
@@ -51,12 +70,20 @@ def build_global_fold_pairs(
         X_tr = train_df
         X_va = val_df
 
+        # Optionally drop NaNs in features
+        if dropna_features:
+            X_tr, y_tr = _dropna_xy(X_tr, y_tr, exclude_cols)
+            X_va, y_va = _dropna_xy(X_va, y_va, exclude_cols)
+
         pairs.append((X_tr, y_tr, X_va, y_va))
 
     return pairs
 
 def build_global_insample_and_test(
     collection: MultiTickerFoldCollection,
+    *,
+    dropna_features: bool = True,
+    exclude_cols: Sequence[str] = ("__ticker__", "Date"),
 ) -> Tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]:
     """
     Build a single in-sample frame (everything before validate_cutoff) and a single test frame
@@ -65,7 +92,6 @@ def build_global_insample_and_test(
     We de-duplicate in-sample by ('__ticker__','Date') to avoid expanding-window overlaps.
     """
     ins_frames, test_frames = [], []
-
     for tfb in collection.items:
         # In-sample: concat each fold's train+val, then drop duplicates per (ticker, Date)
         per_ticker_ins = []
@@ -92,5 +118,9 @@ def build_global_insample_and_test(
     y_test = test_df.pop("Target")
     X_ins  = ins_df
     X_test = test_df
+
+    if dropna_features:
+        X_ins, y_ins = _dropna_xy(X_ins, y_ins, exclude_cols)
+        X_test, y_test = _dropna_xy(X_test, y_test, exclude_cols)
 
     return X_ins, y_ins, X_test, y_test

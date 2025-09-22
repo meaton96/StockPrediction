@@ -3,6 +3,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
+from typing import Tuple
 
 def make_global_linear_pipeline(numeric_cols, model):
     pre = ColumnTransformer([
@@ -18,7 +19,7 @@ def make_global_linear_pipeline(numeric_cols, model):
     ])
 
 
-def make_global_rf_pipeline(numeric_cols):
+def make_global_rf_pipeline(numeric_cols) -> Tuple[ColumnTransformer, RandomForestClassifier, Pipeline]:
     pre = ColumnTransformer([
         ("num", Pipeline([
             ("impute", SimpleImputer(strategy="median")),
@@ -32,4 +33,4 @@ def make_global_rf_pipeline(numeric_cols):
         random_state=42,
         n_jobs=-1
     )
-    return Pipeline([("pre", pre), ("clf", rf)])
+    return pre, rf, Pipeline([("pre", pre), ("clf", rf)])

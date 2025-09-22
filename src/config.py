@@ -18,7 +18,8 @@ class Config:
         fold_mode: str = 'expanding',   # 'expanding' or 'sliding'
         sliding_train_years: Optional[int] = None,  # required if fold_mode='sliding'
         embargo_days: Optional[int] = None,         # default: target['horizon']
-        project_root: Optional[Path] = None
+        project_root: Optional[Path] = None,
+        **kwargs
     ):
         self.project_root = project_root or Path(__file__).resolve().parents[1]
         self.data_dir = self.project_root / "data"
@@ -39,28 +40,34 @@ class Config:
         self.embargo_days = embargo_days  # if None, we’ll fill from target.horizon
         self.raw_path = Path('../data/raw')
         self.add_int_features = add_int_features
+        # absorb any extra kwargs to keep backwards compatibility
+        for k, v in kwargs.items():
+            setattr(self, k, v)
 
-    # def set_config(
-    #     self,
-    #     features: Optional[List[str]] = None,
-    #     target: Optional[Dict[str, float]] = None,
-    #     ticker_list: Optional[List[str]] = None,
-    #     train_cutoff: Optional[str] = None,
-    #     validate_cutoff: Optional[str] = None,
-    #     fold_len: Optional[int] = None,
-    #     fold_mode: Optional[str] = None,
-    #     sliding_train_years: Optional[int] = None,
-    #     embargo_days: Optional[int] = None
-    # ) -> None:
-    #     if features is not None: self.features = features
-    #     if target is not None: self.target = target
-    #     if ticker_list is not None: self.ticker_list = ticker_list
-    #     if train_cutoff is not None: self.train_cutoff = train_cutoff
-    #     if validate_cutoff is not None: self.validate_cutoff = validate_cutoff
-    #     if fold_len is not None: self.fold_len = fold_len
-    #     if fold_mode is not None: self.fold_mode = fold_mode
-    #     if sliding_train_years is not None: self.sliding_train_years = sliding_train_years
-    #     if embargo_days is not None: self.embargo_days = embargo_days
+    def set_config(
+        self,
+        features: Optional[List[str]] = None,
+        target: Optional[Dict[str, float]] = None,
+        ticker_list: Optional[List[str]] = None,
+        train_cutoff: Optional[str] = None,
+        validate_cutoff: Optional[str] = None,
+        fold_len: Optional[str] = None,
+        fold_mode: Optional[str] = None,
+        sliding_train_years: Optional[int] = None,
+        embargo_days: Optional[int] = None,
+        **kwargs
+    ) -> None:
+        if features is not None: self.features = features
+        if target is not None: self.target = target
+        if ticker_list is not None: self.ticker_list = ticker_list
+        if train_cutoff is not None: self.train_cutoff = train_cutoff
+        if validate_cutoff is not None: self.validate_cutoff = validate_cutoff
+        if fold_len is not None: self.fold_len = fold_len
+        if fold_mode is not None: self.fold_mode = fold_mode
+        if sliding_train_years is not None: self.sliding_train_years = sliding_train_years
+        if embargo_days is not None: self.embargo_days = embargo_days
+        for k, v in kwargs.items():
+            setattr(self, k, v)
 
     def to_dict(self) -> Dict:
         return {

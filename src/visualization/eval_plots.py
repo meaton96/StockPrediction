@@ -41,54 +41,50 @@ def get_scores_and_proba(
     """
     scores = None
     proba = None
+    score_is_margin = False   # NEW
 
     has_dec = hasattr(pipe, "decision_function")
     has_proba = hasattr(pipe, "predict_proba")
 
     if has_dec:
         scores = pipe.decision_function(X)
+        score_is_margin = True
     elif has_proba:
-        # If there is no margin, use probability as a score
         proba_raw = pipe.predict_proba(X)
         scores = proba_raw[:, 1]
     else:
-        # last resort: signed class; terrible, but prevents total failure
         scores = pipe.predict(X).astype(float)
 
     if proba_strategy == "none":
-        return np.asarray(scores), None
+        return np.asarray(scores), None, score_is_margin
 
     if proba_strategy == "model":
         if has_proba:
             proba = pipe.predict_proba(X)[:, 1]
-        return np.asarray(scores), proba
+        return np.asarray(scores), proba, score_is_margin
 
     if proba_strategy == "sigmoid":
         if has_dec:
             proba = _sigmoid(scores)
-        return np.asarray(scores), proba
+        return np.asarray(scores), proba, score_is_margin
 
     # auto
     if has_proba:
         proba = pipe.predict_proba(X)[:, 1]
     elif has_dec:
         proba = _sigmoid(scores)
-    # else leave as None
-    return np.asarray(scores), proba
+
+    return np.asarray(scores), proba, score_is_margin
 
 
 # ---------------------------
 # Dataframe builder
 # ---------------------------
 
-def build_eval_frame(
-    pipe,
-    X_test: pd.DataFrame,
-    y_test: pd.Series,
-    proba_strategy: str = "auto",
-) -> pd.DataFrame:
-    scores, proba = get_scores_and_proba(pipe, X_test, proba_strategy=proba_strategy)
-    pred0 = (scores >= 0).astype(int)
+def build_eval_frame(pipe, X_test, y_test, proba_strategy: str = "auto"):
+    scores, proba, score_is_margin = get_scores_and_proba(pipe, X_test, proba_strategy=proba_strategy)
+    default_thr = 0.0 if score_is_margin else 0.5
+    pred0 = (scores >= default_thr).astype(int)
 
     return pd.DataFrame({
         "Date": X_test["Date"].values if "Date" in X_test.columns else pd.NaT,
@@ -97,6 +93,7 @@ def build_eval_frame(
         "score": scores,
         "proba": proba if proba is not None else np.nan,
         "pred@0": pred0,
+        "score_is_margin": score_is_margin,   # optional for later checks
     })
 
 
@@ -157,7 +154,7 @@ def plot_pr(df_eval: pd.DataFrame):
     plt.show()
     return ap
 
-def plot_threshold_sweep(df_eval: pd.DataFrame) -> Tuple[float, float, pd.DataFrame]:
+def plot_threshold_sweep(df_eval: pd.DataFrame):
     sweep = sweep_thresholds(df_eval["y"].values, df_eval["score"].values)
     best_youden_thr = float(sweep.loc[sweep["youden"].idxmax(), "thr"])
     best_f1_thr = float(sweep.loc[sweep["f1"].idxmax(), "thr"])
@@ -167,10 +164,14 @@ def plot_threshold_sweep(df_eval: pd.DataFrame) -> Tuple[float, float, pd.DataFr
     plt.plot(sweep["thr"], sweep["f1"], label="F1")
     plt.plot(sweep["thr"], sweep["precision"], label="precision")
     plt.plot(sweep["thr"], sweep["recall"], label="recall")
-    plt.axvline(0.0, linestyle="--", label="thr=0.0")
+
+   
+    ref_thr = 0.0 if df_eval.get("score_is_margin", pd.Series([True])).iloc[0] else 0.5
+    plt.axvline(ref_thr, linestyle="--", label=f"baseline thr={ref_thr:g}")
+
     plt.axvline(best_youden_thr, linestyle=":", label=f"best Youden={best_youden_thr:.4f}")
     plt.axvline(best_f1_thr, linestyle="-.", label=f"best F1={best_f1_thr:.4f}")
-    plt.xlabel("Decision threshold (on decision score)")
+    plt.xlabel("Decision threshold (on score)")
     plt.ylabel("Metric")
     plt.title("Threshold sweep on final test")
     plt.legend()
@@ -285,8 +286,8 @@ def run_full_eval_and_plots(
     """
     out_dir = Path(out_dir) if out_dir is not None else None
 
-    if not out_dir.exists():
-        os.mkdir(out_dir)
+    if out_dir is not None:
+        out_dir.mkdir(parents=True, exist_ok=True)
 
     df_eval = build_eval_frame(pipe, X_test, y_test, proba_strategy=proba_strategy)
 
@@ -312,7 +313,6 @@ def run_full_eval_and_plots(
     plot_rolling_accuracy(df_eval, window=50)
 
     if out_dir:
-        out_dir.mkdir(parents=True, exist_ok=True)
         df_eval.to_csv(out_dir / save_predictions_as, index=False)
 
     stats = {
